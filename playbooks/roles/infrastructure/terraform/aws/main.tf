@@ -705,7 +705,7 @@ resource "aws_route53_zone" "private" {
 resource "aws_route53_record" "registry" {
   zone_id = aws_route53_zone.private.zone_id
   name    = "registry"
-  type    = "CNAME"
+  type    = "A"
   ttl     = "300"
   records = [aws_instance.bastion.private_ip]
 }
