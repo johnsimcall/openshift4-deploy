@@ -1,0 +1,31 @@
+---
+
+- name: Check if the mirror registry container is running
+  command: podman inspect --type=container mirror-registry
+  no_log: yes
+  ignore_errors: yes
+  register: r_podman
+
+- name: Restart the mirror registry (apply new htpasswd / certs)
+  command: podman restart mirror-registry
+  when: r_podman is succeeded
+  # when: r_podman.stdout | from_json | json_query('[0].State.Status') == "running"
+
+- name: Create/run the mirror registry container
+  command: >-
+    podman run --name mirror-registry \
+     -p {{registryPort}}:5000 \ 
+     -v /opt/registry/auth:/auth:z \
+     -v /opt/registry/certs:/certs:z \
+     -v /opt/registry/data:/var/lib/registry:z \
+     -e REGISTRY_AUTH=htpasswd \
+     -e REGISTRY_AUTH_HTPASSWD_REALM="Registry Realm" \
+     -e REGISTRY_AUTH_HTPASSWD_PATH=/auth/htpasswd \
+     -e REGISTRY_HTTP_TLS_CERTIFICATE=/certs/domain.crt \
+     -e REGISTRY_HTTP_TLS_KEY=/certs/domain.key \
+     -d docker.io/library/registry:2
+  when: r_podman is failed
+
+# - name: Delete the old mirror registry
+#   command: podman rm mirror-registry
+#   failed_when: false

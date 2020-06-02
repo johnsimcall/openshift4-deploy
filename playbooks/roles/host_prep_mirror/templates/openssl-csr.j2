@@ -1,0 +1,26 @@
+[ req ]
+prompt             = no
+encrypt_key        = {{ csrEncryptPrivateKey }}
+default_bits       = {{ csrPrivateKeyBits }}
+default_md         = {{ csrPrivateKeyMessageDigest }}
+default_keyfile    = {{ csrPrivateKeyFile }}
+distinguished_name = req_distinguished_name
+
+[ req_distinguished_name ]
+commonName             = {{ csrCommonName }}
+countryName            = {{ csrCountryName }}
+stateOrProvinceName    = {{ csrStateName }}
+localityName           = {{ csrCityName }}
+organizationName       = {{ csrOrganizationName }}
+organizationalUnitName = {{ csrOrganizationalUnitName }}
+
+# Optional
+{% if csrStreetAddress is defined and csrStreetAddress|length%}
+streetAddress          = {{ csrStreetAddress }}
+{% endif %}
+{% if csrPostalCode is defined and csrPostalCode|length%}
+postalCode             = {{ csrPostalCode }}
+{% endif %}
+{% if csrEmailAddress is defined and csrEmailAddress|length%}
+emailAddress           = {{ csrEmailAddress }}
+{% endif %}

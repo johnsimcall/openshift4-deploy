@@ -1,0 +1,37 @@
+---
+
+- name: Create CSR template file
+  template:
+    src: openssl-csr.j2
+    dest: /opt/registry/certs/registry.csr
+  register: r_csr
+
+- name: Create self-signed certificate
+  args:
+    chdir: /opt/registry/certs
+  command: >-
+    openssl req -x509 -days {{csrValidDays}}
+      -config registry.csr
+      -keyout {{csrPrivateKeyFile}}
+      -out {{csrCertificateFile}}
+  when: r_csr.changed is true    
+
+- name: Put the new certificate into a base64-encoded variable
+  slurp:
+    src: /opt/registry/certs/{{ csrCertificateFile }}
+  register: r_mirror_CA
+
+- name: Decode the new certificate variable
+  set_fact:
+    mirror_CA: "{{ r_mirror_CA.content | b64decode | trim }}"
+
+- name: Copy the self-signed certificate to /etc/pki/ca-trust/source/anchors
+  copy:
+    remote_src: yes
+    src: /opt/registry/certs/domain.crt
+    dest: /etc/pki/ca-trust/source/anchors
+  register: r_copy
+
+- name: Add the self-signed certificate as a trusted certificate
+  command: update-ca-trust
+  when: r_copy.changed is true

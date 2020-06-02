@@ -1,0 +1,39 @@
+---
+
+#Add the mirror registry to the pull secret
+- name: Put the mirror registry credentials into a string
+  set_fact:
+    mirror_credentials: "{{ registryUsername }}:{{ registryPassword }}"
+    pull_secret_dict: "{{ pull_secret | from_json }}"
+
+- name: Put the mirror registry credentials into JSON
+  set_fact:
+    mirror_auth: '{"auths":{"{{ csrCommonName }}:{{ registryPort }}":{"auth":"{{ mirror_credentials | b64encode }}", "email":"{{ csrEmailAddress }}"}}}'
+
+- name: Put the base64-encoded mirror credentials into a new pull secret
+  set_fact:
+    new_pull_secret: "{{ pull_secret_dict | combine(mirror_auth, recursive=True) | to_json }}"
+
+- name: Save the new pull secret
+  copy:
+    content: "{{ new_pull_secret }}"
+    dest: "{{ openshift_install_dir }}/new_pull_secret.json"
+    owner: "{{ ansible_user_uid | int }}"
+    group: "{{ ansible_user_gid | int }}"
+    mode: 0644
+
+### TODO: remove static variables (-x86_64 and openshift-release-dev)
+- name: Mirror the OCP repository locally
+  environment:
+    LOCAL_SECRET_JSON: "{{ openshift_install_dir }}/new_pull_secret.json"
+    PRODUCT_REPO: "openshift-release-dev"
+    RELEASE_NAME: "ocp-release"
+    OCP_RELEASE: "{{ openshift_version }}-x86_64"
+    LOCAL_REGISTRY: "{{ csrCommonName }}:{{ registryPort }}"
+    LOCAL_REPOSITORY: "{{ registry_local_repo_name }}"
+  command: >-
+    oc adm -a ${LOCAL_SECRET_JSON} release mirror
+      --from=quay.io/${PRODUCT_REPO}/${RELEASE_NAME}:${OCP_RELEASE}
+      --to=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}
+      --to-release-image=${LOCAL_REGISTRY}/${LOCAL_REPOSITORY}:${OCP_RELEASE}
+  register: r_mirror

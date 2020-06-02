@@ -36,3 +36,7 @@
     - import_role:
         name: openshift_install
       tags: [install]
+
+    - import_role:
+        name: host_prep_mirror
+      tags: [mirror]

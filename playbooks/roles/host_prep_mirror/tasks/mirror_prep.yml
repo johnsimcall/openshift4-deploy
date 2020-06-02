@@ -1,0 +1,46 @@
+---
+
+- name: Install mirror registry tools
+  yum:
+    enablerepo:
+      - rhui-rhel-7-server-rhui-extras-rpms
+      #- rhel-7-server-extras-rpms
+    name:
+      - podman
+      - httpd-tools
+      #- firewalld
+    state: present
+
+- name: Install jq directly from EPEL 7Server
+  yum:
+    name:
+      - https://dl.fedoraproject.org/pub/epel/7Server/x86_64/Packages/o/oniguruma-5.9.5-3.el7.x86_64.rpm
+      - https://dl.fedoraproject.org/pub/epel/7Server/x86_64/Packages/j/jq-1.6-1.el7.x86_64.rpm
+
+- name: Create mirror registry directory structure
+  file:
+    state: directory
+    path: "{{ item }}"
+  loop:
+    - /opt/registry/auth
+    - /opt/registry/certs
+    - /opt/registry/data
+
+- name: Create a username/password for the mirror registry
+  args:
+    chdir: /opt/registry/auth
+  command: htpasswd -bBc ./htpasswd {{registryUsername}} {{registryPassword}}
+#  no_log: yes
+
+- name: Check if firewalld is installed/running
+  command: systemctl show firewalld
+  no_log: yes
+  register: r_firewalld
+
+- name: Open the mirror registry firewall port
+  firewalld:
+    port: "{{registryPort}}/tcp"
+    permanent: yes
+    immediate: yes
+    state: enabled
+  when: r_firewalld.stdout is search("ActiveState=active")

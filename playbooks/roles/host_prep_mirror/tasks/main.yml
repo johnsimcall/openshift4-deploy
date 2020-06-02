@@ -1,0 +1,29 @@
+---
+
+- name: Setup mirroring pre-requisites
+  include_tasks: mirror_prep.yml
+  args:
+    apply:
+      become: yes
+
+- name: Create mirror self-signed certificate
+  include_tasks: mirror_self-signed-cert.yml
+  args:
+    apply:
+      become: yes
+
+- name: Run the mirror registry container
+  include_tasks: mirror_run_container.yml
+  args:
+    apply:
+      become: yes
+
+- name: Mirror the OCP images locally
+  include_tasks: mirror_images.yml
+
+- name: Update the install-config.yml with the mirror data
+  include_tasks:
+    file: mirror_install_config.yml
+    apply:
+      tags:
+        - test

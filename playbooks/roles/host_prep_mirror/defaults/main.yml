@@ -1,0 +1,29 @@
+---
+# default vars file for host_prep_mirror role
+
+openshift_install_dir: "{{ ansible_user_dir }}/ocp4"
+
+registryUsername: "example"
+registryPassword: "example"
+registryPort: 5000
+registry_local_repo_name: "example/example"
+
+mirror_imageContentSources: ""
+mirror_CA: ""
+
+csrEncryptPrivateKey: "no"
+csrPrivateKeyFile: "private.key"
+csrPrivateKeyMessageDigest: "sha256"
+csrPrivateKeyBits: 4096
+csrCertificateFile: "cert.pem"
+
+csrValidDays:              365
+csrCountryName:            "XX"  #Two-letter abbreviation
+csrStateName:              "State/Province Name"
+csrCityName:               "City/Locale Name"
+csrOrganizationName:       "Organization Name"
+csrOrganizationalUnitName: "Organizational Unit Name"
+csrCommonName:             "myserver.example.com"
+csrStreetAddress:          ""  #Optional (e.g. "100 Example Street")
+csrPostalCode:             ""  #Optional (e.g. "123456")
+csrEmailAddress:           ""  #Optional (e.g. "you@example.com")
