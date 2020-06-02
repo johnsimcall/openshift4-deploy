@@ -19,8 +19,8 @@
       template:
         src: install-config.yaml.j2
         dest: "{{ openshift_install_dir }}/{{ item }}"
-        owner: "{{ ansible_user_uid }}"
-        group: "{{ ansible_user_gid }}"
+        owner: "{{ ansible_user_uid | int }}"
+        group: "{{ ansible_user_gid | int }}"
         mode: 0644
       loop:
         - install-config.yaml
