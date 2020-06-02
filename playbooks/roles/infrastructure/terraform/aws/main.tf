@@ -281,6 +281,25 @@ resource "aws_lb" "ingress" {
   )
 }
 
+resource "aws_lb" "ingress_int" {
+  name               = "${substr(var.cluster_id, 0, 24)}-ingress-int"
+  internal           = true
+  load_balancer_type = "network"
+
+  subnets = [
+    aws_subnet.private0.id,
+    aws_subnet.private1.id,
+    aws_subnet.private2.id
+  ]
+
+  tags = merge(
+    local.kubernetes_cluster_shared_tag,
+    map(
+      "Name", "${var.cluster_id}-ingress-int"
+    )
+  )
+}
+
 resource "aws_lb_target_group" "api" {
   name     = "${substr(var.cluster_id, 0, 28)}-api"
   vpc_id   = aws_vpc.openshift.id
@@ -311,6 +330,19 @@ resource "aws_lb_target_group" "http" {
 
 resource "aws_lb_target_group" "https" {
   name     = "${substr(var.cluster_id, 0, 26)}-https"
+  vpc_id   = aws_vpc.openshift.id
+  port     = 443
+  protocol = "TCP"
+}
+resource "aws_lb_target_group" "http_int" {
+  name     = "${substr(var.cluster_id, 0, 27)}-http-int"
+  vpc_id   = aws_vpc.openshift.id
+  port     = 80
+  protocol = "TCP"
+}
+
+resource "aws_lb_target_group" "https_int" {
+  name     = "${substr(var.cluster_id, 0, 26)}-https-int"
   vpc_id   = aws_vpc.openshift.id
   port     = 443
   protocol = "TCP"
@@ -370,6 +402,27 @@ resource "aws_lb_listener" "https" {
     target_group_arn = aws_lb_target_group.https.arn
   }
 }
+resource "aws_lb_listener" "http_int" {
+  load_balancer_arn = aws_lb.ingress_int.arn
+  port              = 80
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.http_int.arn
+  }
+}
+
+resource "aws_lb_listener" "https_int" {
+  load_balancer_arn = aws_lb.ingress_int.arn
+  port              = 443
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.https_int.arn
+  }
+}
 
 resource "aws_lb_target_group_attachment" "api_masters" {
   count = 3
@@ -419,6 +472,21 @@ resource "aws_lb_target_group_attachment" "ingress_https_workers" {
   count = 3
 
   target_group_arn = aws_lb_target_group.https.arn
+  target_id        = aws_instance.workers[count.index].id
+  port             = 443
+}
+resource "aws_lb_target_group_attachment" "ingress_http_workers_int" {
+  count = 3
+
+  target_group_arn = aws_lb_target_group.http_int.arn
+  target_id        = aws_instance.workers[count.index].id
+  port             = 80
+}
+
+resource "aws_lb_target_group_attachment" "ingress_https_workers_int" {
+  count = 3
+
+  target_group_arn = aws_lb_target_group.https_int.arn
   target_id        = aws_instance.workers[count.index].id
   port             = 443
 }
@@ -723,7 +791,7 @@ resource "aws_route53_record" "apps_private" {
   name    = "*.apps"
   type    = "CNAME"
   ttl     = "300"
-  records = [aws_lb.ingress.dns_name]
+  records = [aws_lb.ingress_int.dns_name]
 }
 
 resource "aws_route53_record" "api_int" {
