@@ -1,0 +1,93 @@
+---
+
+# Using Operator Lifecycle Manager on restricted networks
+# https://docs.openshift.com/container-platform/4.4/operators/olm-restricted-networks.html
+
+### TODO: remove static definitions
+- name: Reduce OCP version from {{ openshift_version }} to X.Y
+  set_fact:
+    local_registry: "{{ csrCommonName }}:{{ registryPort }}"
+    registry_creds: "{{ openshift_install_dir }}/new_pull_secret.json"
+    openshift_version_xy: "{{ openshift_version.split('.')[0] + '.' + openshift_version.split('.')[1] }}"
+    catalogs:
+      - redhat-operators
+      - redhat-marketplace
+      - certified-operators
+      - community-operators
+
+- name: Build an Operator catalog image
+  command: >-
+    oc adm catalog build -a {{ registry_creds }}
+      --appregistry-org {{ item }}
+      --from=registry.redhat.io/openshift4/ose-operator-registry:v{{ openshift_version_xy}}
+      --to={{ local_registry }}/olm/{{ item }}:v{{ openshift_version_xy }}
+  register: r_catalog
+  loop:
+    - catalogs
+
+- name: Save output
+  copy:
+    dest: "{{ openshift_install_dir }}/oc_adm_catalog_build.{{ item }}"
+    mode: 0644
+    owner: "{{ ansible_user_uid | int }}"
+    group: "{{ ansible_user_gid | int }}"
+    content: "{{ item }}"
+  loop:
+    - r_catalog.stdout
+    - r_catalog.stderr
+
+
+- name: Disable the default OperatorSources
+  command: >-
+    oc patch OperatorHub cluster --type json --patch
+      '[{"op": "add", "path": "/spec/disableAllDefaultSources", "value": true}]'
+
+
+
+- name: Mirror the catalog image's contents to "{{ csrCommonName }}:{{ registryPort }}"
+  args:
+    chdir: "{{ openshift_install_dir }}"
+  command: >-
+    oc adm catalog mirror -a {{ registry_creds }}
+    {{ local_registry }}/olm/{{ item }}:v{{ openshift_version_xy }}
+    {{ local_registry }}
+  register: r_catalog_mirror
+  loop:
+    - catalogs
+
+  #TODO
+- name: Apply the manifests
+  args:
+    chdir: "{{ openshift_install_dir }}"
+  command: >-
+    oc apply -f "{{ item }}-manifests
+  loop:
+    - catalogs
+
+- name: Create the CatalogSource yaml files
+  copy:
+    dest: "{{ openshift_install_dir }}/catalogsource_local-{{ item }}.yaml"
+    mode: 0644
+    owner: "{{ ansible_user_uid | int }}"
+    group: "{{ ansible_user_gid | int }}"
+    content: |
+      apiVersion: operators.coreos.com/v1alpha1
+      kind: CatalogSource
+      metadata:
+        name: local-{{ item }}
+        namespace: openshift-marketplace
+      spec:
+        sourceType: grpc
+        image: "{{ local_registry }}/olm/{{ item }}:v{{ openshift_version_xy }}"
+        displayName: My Operator Catalog (source: {{ item }})
+        publisher: grpc
+  loop:
+    - catalogs
+
+- name: Create the CatalogSource object
+  args:
+    chdir: "{{ openshift_install_dir }}"
+  command: >-
+    oc create -f catalogsource_local-{{ item }}.yaml"
+  loop:
+    - catalogs
