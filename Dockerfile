@@ -12,6 +12,7 @@ USER root
 
 RUN \
     dnf install -y \
+        git \
         openssh-clients \
         python3 \
         python3-pip \
@@ -20,7 +21,8 @@ RUN \
         which \
     && dnf clean all \
     && pip3 install --upgrade pip \
-    && pip3 install pipenv
+    && pip3 install pipenv \
+    && echo 'export PS1="\[\e[34m\]\u\[\e[m\] at \[\e[32m\]\h\[\e[m\] in \[\e[33m\]\w\[\e[m\] \[\e[31m\]\n\\$\[\e[m\] "' >> /root/.bashrc
 
 WORKDIR /tmp
 
