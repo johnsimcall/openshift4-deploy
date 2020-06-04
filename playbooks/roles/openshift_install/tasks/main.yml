@@ -10,8 +10,8 @@
     - name: Create OpenShift installation directory
       file:
         path: "{{ openshift_install_dir }}"
-        owner: "{{ ansible_user_uid }}"
-        group: "{{ ansible_user_gid }}"
+        owner: "{{ ansible_user_uid | int }}"
+        group: "{{ ansible_user_gid | int }}"
         mode: 0755
         state: directory
 
@@ -19,12 +19,18 @@
       template:
         src: install-config.yaml.j2
         dest: "{{ openshift_install_dir }}/{{ item }}"
-        owner: "{{ ansible_user_uid }}"
-        group: "{{ ansible_user_gid }}"
+        owner: "{{ ansible_user_uid | int }}"
+        group: "{{ ansible_user_gid | int }}"
         mode: 0644
       loop:
         - install-config.yaml
         - install-config.backup.yaml
+      when: csrCommonName is undefined
+
+    - name: Import the mirror registry role
+      import_role:
+        name: host_prep_mirror
+      when: csrCommonName is defined
 
     - name: Generate OpenShift manifests
       command: openshift-install create manifests

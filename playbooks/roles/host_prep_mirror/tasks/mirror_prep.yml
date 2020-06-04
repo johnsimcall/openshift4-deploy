@@ -11,7 +11,7 @@
       #- firewalld
     state: present
 
-- name: Install jq directly from EPEL 7Server
+- name: Install jq directly from EPEL
   yum:
     name:
       - https://dl.fedoraproject.org/pub/epel/7Server/x86_64/Packages/o/oniguruma-5.9.5-3.el7.x86_64.rpm
@@ -21,10 +21,14 @@
   file:
     state: directory
     path: "{{ item }}"
+    owner: "{{ ansible_user_uid | int }}"
+    group: "{{ ansible_user_gid | int }}"
+    mode: 0755
   loop:
-    - /opt/registry/auth
-    - /opt/registry/certs
-    - /opt/registry/data
+    - "/opt/registry/auth"
+    - "/opt/registry/certs"
+    - "/opt/registry/data"
+    - "{{ openshift_install_dir }}"
 
 - name: Create a username/password for the mirror registry
   args:

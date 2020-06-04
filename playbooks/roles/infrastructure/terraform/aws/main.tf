@@ -157,69 +157,6 @@ resource "aws_route_table_association" "public2" {
   route_table_id = aws_route_table.public.id
 }
 
-resource "aws_eip" "natgw_public0" {
-  vpc = true
-
-  tags = {
-    Name = "${var.cluster_id}-natgw-${data.aws_availability_zones.available.names[0]}"
-  }
-
-  depends_on = [aws_internet_gateway.openshift]
-}
-
-resource "aws_eip" "natgw_public1" {
-  vpc = true
-
-  tags = {
-    Name = "${var.cluster_id}-natgw-${data.aws_availability_zones.available.names[1]}"
-  }
-
-  depends_on = [aws_internet_gateway.openshift]
-}
-
-resource "aws_eip" "natgw_public2" {
-  vpc = true
-
-  tags = {
-    Name = "${var.cluster_id}-natgw-${data.aws_availability_zones.available.names[2]}"
-  }
-
-  depends_on = [aws_internet_gateway.openshift]
-}
-
-resource "aws_nat_gateway" "public0" {
-  subnet_id     = aws_subnet.public0.id
-  allocation_id = aws_eip.natgw_public0.id
-
-  tags = {
-    Name = "${var.cluster_id}-${data.aws_availability_zones.available.names[0]}"
-  }
-
-  depends_on = [aws_internet_gateway.openshift]
-}
-
-resource "aws_nat_gateway" "public1" {
-  subnet_id     = aws_subnet.public1.id
-  allocation_id = aws_eip.natgw_public1.id
-
-  tags = {
-    Name = "${var.cluster_id}-${data.aws_availability_zones.available.names[1]}"
-  }
-
-  depends_on = [aws_internet_gateway.openshift]
-}
-
-resource "aws_nat_gateway" "public2" {
-  subnet_id     = aws_subnet.public2.id
-  allocation_id = aws_eip.natgw_public2.id
-
-  tags = {
-    Name = "${var.cluster_id}-${data.aws_availability_zones.available.names[2]}"
-  }
-
-  depends_on = [aws_internet_gateway.openshift]
-}
-
 resource "aws_subnet" "private0" {
   vpc_id                  = aws_vpc.openshift.id
   cidr_block              = cidrsubnet(var.vpc_cidr, 4, 3)
@@ -262,58 +199,27 @@ resource "aws_subnet" "private2" {
   )
 }
 
-resource "aws_route_table" "private0" {
+resource "aws_route_table" "private" {
   vpc_id = aws_vpc.openshift.id
 
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.public0.id
-  }
-
   tags = {
-    Name = "${var.cluster_id}-private-${data.aws_availability_zones.available.names[0]}"
-  }
-}
-
-resource "aws_route_table" "private1" {
-  vpc_id = aws_vpc.openshift.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.public1.id
-  }
-
-  tags = {
-    Name = "${var.cluster_id}-private-${data.aws_availability_zones.available.names[1]}"
-  }
-}
-
-resource "aws_route_table" "private2" {
-  vpc_id = aws_vpc.openshift.id
-
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_nat_gateway.public2.id
-  }
-
-  tags = {
-    Name = "${var.cluster_id}-private-${data.aws_availability_zones.available.names[2]}"
+    Name = "${var.cluster_id}-private"
   }
 }
 
 resource "aws_route_table_association" "private0" {
   subnet_id      = aws_subnet.private0.id
-  route_table_id = aws_route_table.private0.id
+  route_table_id = aws_route_table.private.id
 }
 
 resource "aws_route_table_association" "private1" {
   subnet_id      = aws_subnet.private1.id
-  route_table_id = aws_route_table.private1.id
+  route_table_id = aws_route_table.private.id
 }
 
 resource "aws_route_table_association" "private2" {
   subnet_id      = aws_subnet.private2.id
-  route_table_id = aws_route_table.private2.id
+  route_table_id = aws_route_table.private.id
 }
 
 ###############################################################################
@@ -375,18 +281,30 @@ resource "aws_lb" "ingress" {
   )
 }
 
+resource "aws_lb" "ingress_int" {
+  name               = "${substr(var.cluster_id, 0, 20)}-ingress-int"
+  internal           = true
+  load_balancer_type = "network"
+
+  subnets = [
+    aws_subnet.private0.id,
+    aws_subnet.private1.id,
+    aws_subnet.private2.id
+  ]
+
+  tags = merge(
+    local.kubernetes_cluster_shared_tag,
+    map(
+      "Name", "${var.cluster_id}-ingress-int"
+    )
+  )
+}
+
 resource "aws_lb_target_group" "api" {
   name     = "${substr(var.cluster_id, 0, 28)}-api"
   vpc_id   = aws_vpc.openshift.id
   port     = 6443
   protocol = "TCP"
-
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-api"
-    )
-  )
 }
 
 resource "aws_lb_target_group" "api_int" {
@@ -394,13 +312,6 @@ resource "aws_lb_target_group" "api_int" {
   vpc_id   = aws_vpc.openshift.id
   port     = 6443
   protocol = "TCP"
-
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-api-int"
-    )
-  )
 }
 
 resource "aws_lb_target_group" "machine_config" {
@@ -408,13 +319,6 @@ resource "aws_lb_target_group" "machine_config" {
   vpc_id   = aws_vpc.openshift.id
   port     = 22623
   protocol = "TCP"
-
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-machine-config"
-    )
-  )
 }
 
 resource "aws_lb_target_group" "http" {
@@ -422,13 +326,6 @@ resource "aws_lb_target_group" "http" {
   vpc_id   = aws_vpc.openshift.id
   port     = 80
   protocol = "TCP"
-
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-http"
-    )
-  )
 }
 
 resource "aws_lb_target_group" "https" {
@@ -436,13 +333,19 @@ resource "aws_lb_target_group" "https" {
   vpc_id   = aws_vpc.openshift.id
   port     = 443
   protocol = "TCP"
+}
+resource "aws_lb_target_group" "http_int" {
+  name     = "${substr(var.cluster_id, 0, 23)}-http-int"
+  vpc_id   = aws_vpc.openshift.id
+  port     = 80
+  protocol = "TCP"
+}
 
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-https"
-    )
-  )
+resource "aws_lb_target_group" "https_int" {
+  name     = "${substr(var.cluster_id, 0, 22)}-https-int"
+  vpc_id   = aws_vpc.openshift.id
+  port     = 443
+  protocol = "TCP"
 }
 
 resource "aws_lb_listener" "api" {
@@ -499,6 +402,27 @@ resource "aws_lb_listener" "https" {
     target_group_arn = aws_lb_target_group.https.arn
   }
 }
+resource "aws_lb_listener" "http_int" {
+  load_balancer_arn = aws_lb.ingress_int.arn
+  port              = 80
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.http_int.arn
+  }
+}
+
+resource "aws_lb_listener" "https_int" {
+  load_balancer_arn = aws_lb.ingress_int.arn
+  port              = 443
+  protocol          = "TCP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.https_int.arn
+  }
+}
 
 resource "aws_lb_target_group_attachment" "api_masters" {
   count = 3
@@ -551,6 +475,21 @@ resource "aws_lb_target_group_attachment" "ingress_https_workers" {
   target_id        = aws_instance.workers[count.index].id
   port             = 443
 }
+resource "aws_lb_target_group_attachment" "ingress_http_workers_int" {
+  count = 3
+
+  target_group_arn = aws_lb_target_group.http_int.arn
+  target_id        = aws_instance.workers[count.index].id
+  port             = 80
+}
+
+resource "aws_lb_target_group_attachment" "ingress_https_workers_int" {
+  count = 3
+
+  target_group_arn = aws_lb_target_group.https_int.arn
+  target_id        = aws_instance.workers[count.index].id
+  port             = 443
+}
 
 ###############################################################################
 # Security Groups
@@ -575,12 +514,9 @@ resource "aws_security_group" "bastion" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-bastion"
-    )
-  )
+  tags = {
+    Name = "${var.cluster_id}-bastion"
+  }
 }
 
 resource "aws_security_group" "bootstrap" {
@@ -602,12 +538,9 @@ resource "aws_security_group" "bootstrap" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-bootstrap"
-    )
-  )
+  tags = {
+    Name = "${var.cluster_id}-bootstrap"
+  }
 }
 
 resource "aws_security_group" "master" {
@@ -636,12 +569,9 @@ resource "aws_security_group" "master" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-master"
-    )
-  )
+  tags = {
+    Name = "${var.cluster_id}-master"
+  }
 }
 
 resource "aws_security_group" "worker" {
@@ -677,12 +607,9 @@ resource "aws_security_group" "worker" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-worker"
-    )
-  )
+  tags = {
+    Name = "${var.cluster_id}-worker"
+  }
 }
 
 ###############################################################################
@@ -697,37 +624,31 @@ resource "aws_instance" "bastion" {
 
   root_block_device {
     volume_type           = "gp2"
-    volume_size           = 20
+    volume_size           = 100
     delete_on_termination = true
   }
 
   vpc_security_group_ids      = [aws_security_group.bastion.id, aws_security_group.master.id]
   associate_public_ip_address = true
 
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-bastion"
-    )
-  )
+  tags = {
+    Name = "${var.cluster_id}-bastion"
+  }
 }
 
 resource "aws_eip" "bastion" {
   vpc      = true
   instance = aws_instance.bastion.id
 
-  tags = merge(
-    local.kubernetes_cluster_shared_tag,
-    map(
-      "Name", "${var.cluster_id}-bastion"
-    )
-  )
+  tags = {
+    Name = "${var.cluster_id}-bastion"
+  }
 
   depends_on = [aws_internet_gateway.openshift]
 }
 
 resource "aws_instance" "bootstrap" {
-  instance_type = "i3.large"
+  instance_type = "m5.xlarge"
   ami           = var.rhcos_ami
   subnet_id     = local.private_subnets[0].id
 
@@ -849,6 +770,14 @@ resource "aws_route53_zone" "private" {
   )
 }
 
+resource "aws_route53_record" "registry" {
+  zone_id = aws_route53_zone.private.zone_id
+  name    = "registry"
+  type    = "A"
+  ttl     = "300"
+  records = [aws_instance.bastion.private_ip]
+}
+
 resource "aws_route53_record" "api_private" {
   zone_id = aws_route53_zone.private.zone_id
   name    = "api"
@@ -862,7 +791,7 @@ resource "aws_route53_record" "apps_private" {
   name    = "*.apps"
   type    = "CNAME"
   ttl     = "300"
-  records = [aws_lb.ingress.dns_name]
+  records = [aws_lb.ingress_int.dns_name]
 }
 
 resource "aws_route53_record" "api_int" {

@@ -22,8 +22,4 @@
   include_tasks: mirror_images.yml
 
 - name: Update the install-config.yml with the mirror data
-  include_tasks:
-    file: mirror_install_config.yml
-    apply:
-      tags:
-        - test
+  include_tasks: mirror_install_config.yml
